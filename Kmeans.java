@@ -1,0 +1,211 @@
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.util.StringTokenizer;
+ 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.Counter;
+import org.apache.hadoop.io.NullWritable;
+public class Kmeans {
+ 
+	private static String centersStr = "centers_str";
+		
+	public static class KmeansMapper extends Mapper<Object, Text, Text, Text>{
+		//保存所有二维簇质心向量
+		double[][] centers = new double[Center.num][];
+		//保存簇质心向量
+		String[] centerstrArray = null;
+		
+		//预处理，收集初始簇质心向量
+		@Override
+		public void setup(Context context) {
+			
+			//读取context中的簇聚类中心向量
+			String centers_str = context.getConfiguration().get(centersStr);
+			centerstrArray = centers_str.split("\t");
+			
+			for(int i = 0; i < centerstrArray.length; i++) {
+				//保存单个二维簇质心向量
+				String[] segs = centerstrArray[i].split(",");
+				centers[i] = new double[segs.length];
+				//给二维簇质心向量赋值
+				for(int j = 0; j < segs.length; j++) {
+					centers[i][j] = Double.parseDouble(segs[j]);
+				}
+			}
+		}
+		
+		//记录与样本向量距离最小的簇质心向量
+		public void map(Object key, Text value, Context context
+                 ) throws IOException, InterruptedException {
+			//读取样本向量
+			String line = value.toString();
+			String[] segs = line.split(",");
+			//保存样本向量
+			double[] single_sample = new double[segs.length];
+			//样本向量赋值
+			for(int i = 0; i < segs.length; i++) {
+				single_sample[i] = Float.parseFloat(segs[i]);
+			}
+			//求得距离样本向量最近的质心
+			double min = Double.MAX_VALUE;
+			int index = 0;
+			//遍历所有的簇质心向量
+			for(int i = 0; i < centers.length; i++) {
+				double dis = getDistance(centers[i], single_sample);
+				if(dis < min) {
+					min = dis;
+					index = i;
+				}
+			}
+			//输出<簇质心向量下标，样本向量>
+			context.write(new Text(centerstrArray[index]), new Text(line));
+		}
+	}
+ 
+	//重新计算簇质心向量，若新向量与原向量相等，则counter加1
+	public static class KmeansReducer extends Reducer<Text,Text,Text,Text> {
+		
+		Counter counter = null;
+		
+		public void reduce(Text key, Iterable<Text> values, Context context) 
+			throws IOException, InterruptedException {
+			
+			//保存同一质心类的样本向量维度和
+			double[] sum = new double[2];
+			int size = 0;
+			//计算对应维度上值的加和，存放在sum数组中
+			Text newVaule = new Text();
+			String sampleList = new String();
+			sampleList += "#";
+			for(Text text : values) {
+				sampleList += "(" + text.toString() + ");";
+				//保存单个样本向量
+				String[] segs = text.toString().split(",");
+				//对每个维度的向量值进行累加
+				for(int i = 0; i < segs.length; i++) {
+					sum[i] += Double.parseDouble(segs[i]);
+				}
+				size ++;
+			}
+			
+			//求sum数组中每个维度向量的平均值，作为新的质心
+			StringBuffer sb = new StringBuffer();
+			for(int i = 0; i < sum.length; i++) {
+				sum[i] /= size;
+				sb.append(sum[i]);
+				//if(i != (sum.length-1))
+				sb.append(",");
+			}
+			
+			//判断新质心向量与原质心向量是否一致
+			boolean flag = false;
+			String[] centerStrArray = key.toString().split(",");
+			//遍历每个维度的向量值
+			for(int i = 0; i < centerStrArray.length; i++) {
+				if(Math.abs(Double.parseDouble(centerStrArray[i]) - sum[i]) <= 1E-5) {
+					flag = true;
+				}
+				else{
+					flag = false;
+					break;
+				}
+			}
+			//如果新的质心跟老的质心是一样的，那么相应的计数器加1
+			if(flag) {
+				counter = context.getCounter("myCounter", "centerCounter");
+				counter.increment(1);
+			}
+			newVaule.set(sampleList);
+			//输出<null,新质心向量>
+			//context.write(null, new Text(sb.toString()));
+			context.write(new Text(sb.toString()), newVaule);
+		}
+	}
+ 
+	public static void main(String[] args) throws Exception {
+ 
+		Path centerPath = new Path("/usr/local/hadoop/my_kmeans/center");	//初始的质心文件
+		Path samplePath = new Path("/usr/local/hadoop/my_kmeans/sample");	//样本文件
+		//加载聚类中心文件
+		Center center = new Center();
+		String centerString = center.loadInitCenter(centerPath);
+		
+		int count = 0;	//迭代的次数
+		while(count < 10) {
+			//创建配置对象
+			Configuration conf = new Configuration();
+			//将簇聚类质心的字符串放到configuration中
+			conf.set(centersStr, centerString);	
+			System.out.println(centerString+"---------------"+count);
+			
+			//本次迭代的输出路径，也是下一次质心的读取路径
+			centerPath = new Path("/usr/local/hadoop/my_kmeans/newCenter" + count);	
+			
+			//判断输出路径是否存在，如果存在，则删除
+			FileSystem hdfs = FileSystem.get(conf);
+			if(hdfs.exists(centerPath)) 
+				hdfs.delete(centerPath);
+			
+			//创建Job对象
+			Job job = new Job(conf, "kmeans" + count); 
+			//设置运行Job的类
+			job.setJarByClass(Kmeans.class);
+			//设置Mapper类
+			job.setMapperClass(KmeansMapper.class);
+			//设置Reducer类
+			job.setReducerClass(KmeansReducer.class);
+			//设置Map输出的key vaule
+			job.setMapOutputKeyClass(Text.class);
+		    job.setMapOutputValueClass(Text.class);
+			//设置Reduce输出的key value
+			job.setOutputKeyClass(Text.class);
+			job.setOutputValueClass(Text.class);	
+			//设置输入输出的路径
+		    FileInputFormat.addInputPath(job, samplePath);
+		    FileOutputFormat.setOutputPath(job, centerPath);
+			//提交job
+			boolean b = job.waitForCompletion(true);
+			if(!b) {
+					System.out.println("Kmeans task fail!");
+					break;
+			}
+			
+			//获取自定义counter的大小，若等于质心数量，停止迭代
+			long counter = job.getCounters().getGroup("myCounter").findCounter("centerCounter").getValue();
+			if(counter == Center.num)	
+				System.exit(0);
+			
+			//重新设置簇质心向量
+			center = new Center();
+			centerString = center.loadCenter(centerPath);
+			
+			count ++;
+		}
+		System.exit(0);
+	}
+	
+	public static double getDistance(double[] a, double[] b) {
+		
+		/*if(a == null || b == null || a.length != b.length) 
+			return Double.MAX_VALUE;*/
+		double dis = 0.0;
+		double result = 0.0;
+		for(int i = 0; i < a.length; i++) {
+			dis += Math.pow(a[i] - b[i], 2);
+		}
+		result = Math.sqrt(dis);
+		return result;
+	}
+}	
