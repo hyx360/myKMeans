@@ -186,14 +186,16 @@ public void reduce(Text key, Iterable<Text> values, Context context) throws IOEx
 - 比较num与counter值，若不相等，继续迭代，重复Mapper、Reducer步骤，否则停止迭代，并输出最终的簇质心。
 ````java
 public static void main(String[] args) throws Exception {
-
-    Path centerPath = new Path("/usr/local/hadoop/my_kmeans/center");	//初始的质心文件
-    Path samplePath = new Path("/usr/local/hadoop/my_kmeans/sample");	//样本文件
+    //初始的质心文件
+    Path centerPath = new Path("/usr/local/hadoop/my_kmeans/center");	
+    //样本文件
+    Path samplePath = new Path("/usr/local/hadoop/my_kmeans/sample");	
     //加载聚类中心文件
     Center center = new Center();
     String centerString = center.initCenter(centerPath);
 
-    int count = 0;	//迭代的次数
+    //迭代的次数
+    int count = 0;	
     while(count < 10) {
         //创建配置对象
         Configuration conf = new Configuration();
@@ -201,7 +203,7 @@ public static void main(String[] args) throws Exception {
         conf.set(centersStr, centerString);	
         System.out.println(centerString+"---------------"+count);
 
-        //本次迭代的输出路径，也是下一次质心的读取路径
+        //本次迭代的输出路径，也是新质心的读取路径
         centerPath = new Path("/usr/local/hadoop/my_kmeans/newCenter" + count);	
 
         //判断输出路径是否存在，如果存在，则删除
