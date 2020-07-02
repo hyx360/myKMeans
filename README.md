@@ -6,7 +6,7 @@
 public String initCenter(Path path) throws IOException {
 	
     //创建配置对象
-     Configuration conf = new Configuration();
+    Configuration conf = new Configuration();
     //初始化文件系统
     FileSystem hdfs = FileSystem.get(conf);
     //打开指定路径文件
@@ -58,10 +58,10 @@ public String getCenter(LineReader in, int flag) throws IOException {
         if(flag==0)
             sb.append(line.toString().trim());
         else{
-                String str = line.toString();
-                int index = str.indexOf("#");
-                str = str.substring(0, index).trim();
-                sb.append(str);
+	    String str = line.toString();
+	    int index = str.indexOf("#");
+	    str = str.substring(0, index).trim();
+	    sb.append(str);
         }
         sb.append("\t");
     }
