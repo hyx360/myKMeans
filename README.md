@@ -246,3 +246,57 @@ public static void main(String[] args) throws Exception {
     System.exit(0);
 }
 ````
+## 3.文件结构
+````
+├── Center.java                   
+├── Center.class
+├── Kmeans.java
+├── Kmeans.class
+├── Kmeans$KmeansMapper.class
+├── Kmeans$KmeansReducer.class
+├── Kmeans.jar                   jar包
+├── center                       初始质心文件
+├── sample                       样本文件
+└── README.md                        
+└── newCenter                    迭代生成的质心文件
+    ├── newCenter0
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    ├── newCenter1
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    ├── newCenter2
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    ├── newCenter3
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000 
+    ├── newCenter4
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    ├── newCenter5
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    ├── newCenter6
+    │	├── ._SUCCESS.crc
+    │	├── .part-r-00000.crc
+    │	├── _SUCCESS
+    │	└── part-r-00000
+    └── newCenter7
+   	├── ._SUCCESS.crc
+   	├── .part-r-00000.crc
+   	├── _SUCCESS
+   	└── part-r-00000
+````
